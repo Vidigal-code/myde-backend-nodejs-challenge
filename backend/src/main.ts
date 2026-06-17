@@ -1,12 +1,15 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/app-config.service';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { rawBody: true, bufferLogs: true });
   app.useLogger(app.get(Logger));
+  // Políticas de cabeçalho de segurança (CSP, X-Frame-Options, HSTS, etc.).
+  app.use(helmet());
   app.enableShutdownHooks();
 
   const config = app.get(AppConfigService);

@@ -55,6 +55,10 @@ export const envSchema = z.object({
 
   // Function calling
   ORDER_STATUS_BASE_URL: z.string().default(''),
+
+  // Rate limiting (janela em ms + máximo de requisições por janela)
+  THROTTLE_TTL: z.coerce.number().int().positive().default(60000),
+  THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
 });
 
 export type Env = z.infer<typeof envSchema>;

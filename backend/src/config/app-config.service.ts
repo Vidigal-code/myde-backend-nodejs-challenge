@@ -110,6 +110,11 @@ export class AppConfigService {
     return { id: this.get('DEFAULT_TENANT_ID'), name: this.get('DEFAULT_TENANT_NAME') };
   }
 
+  // ── Rate limiting ────────────────────────────────────
+  get throttle(): { ttl: number; limit: number } {
+    return { ttl: this.get('THROTTLE_TTL'), limit: this.get('THROTTLE_LIMIT') };
+  }
+
   // ── Function calling ─────────────────────────────────
   /** Base do endpoint de status de pedido; vazio = usa a própria API (localhost:PORT). */
   get orderStatusBaseUrl(): string {

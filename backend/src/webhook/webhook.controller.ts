@@ -8,11 +8,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AppConfigService } from '@/config/app-config.service';
 import { WebhookSignatureGuard } from './webhook-signature.guard';
 import { WebhookService } from './webhook.service';
 
 /** Endpoints do webhook da Meta: handshake (GET) e recebimento de mensagens (POST). */
+@SkipThrottle()
 @Controller('webhook')
 export class WebhookController {
   constructor(
