@@ -28,16 +28,14 @@ describe('AuditInterceptor', () => {
     );
   });
 
-  it('audita erros com outcome=error e re-lança o erro original', async () => {
+  it('propaga o erro sem auditar (auditoria de erro fica no AllExceptionsFilter)', async () => {
     const audit = { record: jest.fn() } as unknown as AuditService;
     const interceptor = new AuditInterceptor(audit);
     const boom = Object.assign(new Error('boom'), { status: 400 });
     const next: CallHandler = { handle: () => throwError(() => boom) };
 
     await expect(firstValueFrom(interceptor.intercept(contextFor(baseReq), next))).rejects.toThrow('boom');
-    expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: 'error', statusCode: 400 }),
-    );
+    expect(audit.record).not.toHaveBeenCalled();
   });
 });
 
