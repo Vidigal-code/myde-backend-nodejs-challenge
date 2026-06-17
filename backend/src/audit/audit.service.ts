@@ -1,17 +1,16 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { AppConfigService } from '@/config/app-config.service';
-import { QueueProducer } from '@/queue/queue-producer.service';
-import { AuditJob } from '@/queue/job.types';
-import { withTransaction } from '@/common/db/transaction.helper';
-import { DRIZZLE_DB, Database } from '@/db/drizzle.types';
-import { AuditRepository } from './audit.repository';
-import { auditJobToRow } from './audit.mapper';
+import { Injectable, Logger } from '@nestjs/common';
+import { AppConfigService } from '../config/app-config.service';
+import { QueueProducer } from '../queue/queue-producer.service';
+import { AuditJob } from '../queue/job.types';
 
 /**
- * Política de persistência da auditoria com cadeia de resiliência:
- *   1) enfileira na fila de auditoria (processada com retry/DLQ pelo worker);
- *   2) se o enqueue falhar -> insere direto no banco dentro de transação (rollback se falhar);
- *   3) se tudo falhar -> apenas loga. NUNCA propaga erro para a request original.
+ * Despacho da auditoria com degradação graciosa, SEM tocar o banco no caminho da request:
+ *   1) enfileira na fila de auditoria (caminho durável: worker persiste com retry/DLQ);
+ *   2) se o enqueue falhar -> registra em LOG ESTRUTURADO (um coletor pode reprocessar).
+ *
+ * Por que não inserir direto no banco no fallback? Um insert síncrono no Postgres
+ * justamente quando o SQS está fora adicionaria carga ao banco no pior momento (risco de
+ * falha em cascata). O log não compete com a carga principal e NUNCA quebra a request.
  */
 @Injectable()
 export class AuditService {
@@ -20,23 +19,15 @@ export class AuditService {
   constructor(
     private readonly producer: QueueProducer,
     private readonly config: AppConfigService,
-    private readonly repository: AuditRepository,
-    @Inject(DRIZZLE_DB) private readonly db: Database,
   ) {}
 
   async record(job: AuditJob): Promise<void> {
     try {
       await this.producer.enqueue(this.config.queues.audit, job);
-      return;
-    } catch (queueErr) {
-      this.logger.warn(`enqueue de auditoria falhou, usando fallback no banco: ${String(queueErr)}`);
-    }
-
-    try {
-      await withTransaction(this.db, (tx) => this.repository.insert(auditJobToRow(job), tx));
-    } catch (dbErr) {
-      this.logger.error(
-        `fallback de auditoria no banco falhou (apenas log): ${String(dbErr)} :: ${JSON.stringify(job)}`,
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `auditoria nao enfileirada; registrada em log para reprocessamento: ${JSON.stringify({ audit: job, reason })}`,
       );
     }
   }

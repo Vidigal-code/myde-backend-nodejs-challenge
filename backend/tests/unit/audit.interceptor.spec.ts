@@ -1,5 +1,5 @@
 import { firstValueFrom, of, throwError } from 'rxjs';
-import { CallHandler, ExecutionContext } from '@nestjs/common';
+import { CallHandler, ExecutionContext, Logger } from '@nestjs/common';
 import { AuditInterceptor } from '@/common/interceptors/audit.interceptor';
 import { AuditService } from '@/audit/audit.service';
 
@@ -39,7 +39,7 @@ describe('AuditInterceptor', () => {
   });
 });
 
-describe('AuditService (fila -> fallback DB -> log)', () => {
+describe('AuditService (fila -> fallback de log, sem tocar o banco)', () => {
   const job = {
     tenantId: 't1',
     method: 'GET',
@@ -49,31 +49,28 @@ describe('AuditService (fila -> fallback DB -> log)', () => {
     durationMs: 5,
   };
   const config = { queues: { audit: 'audit-url' } } as any;
-  // withTransaction(db, fn) chama db.transaction((tx) => fn(tx)); simulamos executando fn('tx').
-  const db = { transaction: (fn: (tx: string) => unknown) => fn('tx') } as any;
 
-  it('enfileira na fila de auditoria (caminho feliz, sem tocar o banco)', async () => {
+  it('enfileira na fila de auditoria (caminho feliz)', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const producer = { enqueue: jest.fn().mockResolvedValue(undefined) } as any;
-    const repo = { insert: jest.fn() } as any;
-    const service = new AuditService(producer, config, repo, db);
+    const service = new AuditService(producer, config);
 
     await service.record(job);
 
     expect(producer.enqueue).toHaveBeenCalledWith('audit-url', job);
-    expect(repo.insert).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
-  it('cai para insert no banco quando o enqueue falha', async () => {
+  it('cai para LOG quando o enqueue falha (não toca o banco, não lança)', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const producer = { enqueue: jest.fn().mockRejectedValue(new Error('sqs down')) } as any;
-    const repo = { insert: jest.fn().mockResolvedValue(undefined) } as any;
-    const service = new AuditService(producer, config, repo, db);
+    const service = new AuditService(producer, config);
 
-    await service.record(job);
+    await expect(service.record(job)).resolves.toBeUndefined();
 
-    expect(repo.insert).toHaveBeenCalledTimes(1);
-    expect(repo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ method: 'GET', outcome: 'success' }),
-      'tx',
-    );
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('sqs down'));
+    warnSpy.mockRestore();
   });
 });
