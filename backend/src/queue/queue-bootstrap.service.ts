@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   CreateQueueCommand,
   GetQueueAttributesCommand,
-  GetQueueUrlCommand,
+  SetQueueAttributesCommand,
   SQSClient,
 } from '@aws-sdk/client-sqs';
 import { AppConfigService } from '@/config/app-config.service';
@@ -52,14 +52,20 @@ export class QueueBootstrap {
     return attrs.Attributes?.QueueArn ?? '';
   }
 
-  /** CreateQueue idempotente: se já existir, apenas confirma a URL. */
+  /**
+   * Garante a fila de forma idempotente: cria se não existir e SEMPRE (re)aplica os
+   * atributos desejados (ex.: redrive policy) — mesmo se a fila já existia. Evita o bug
+   * de uma fila pré-existente ficar sem a política de DLQ/retry.
+   */
   private async ensureQueue(url: string, attributes: Record<string, string>): Promise<void> {
     const name = queueNameFromUrl(url);
     try {
-      await this.sqs.send(new CreateQueueCommand({ QueueName: name, Attributes: attributes }));
+      await this.sqs.send(new CreateQueueCommand({ QueueName: name }));
     } catch (err) {
-      await this.sqs.send(new GetQueueUrlCommand({ QueueName: name }));
       this.logger.debug(`fila ${name} já existia: ${String(err)}`);
+    }
+    if (Object.keys(attributes).length > 0) {
+      await this.sqs.send(new SetQueueAttributesCommand({ QueueUrl: url, Attributes: attributes }));
     }
   }
 }
