@@ -1,6 +1,7 @@
 # ============================================================================
-#  CONFIGURAÇÃO DO BACKEND — Atendimento WhatsApp com IA (NestJS)
-#  Copie para `.env` e ajuste. O sistema sobe 100% SIMULADO sem nenhuma credencial.
+#  CONFIGURAÇÃO CENTRAL (RAIZ) — Atendimento WhatsApp com IA (NestJS)
+#  Copie para `.env` na RAIZ do repositório. Orquestra docker-compose, API e worker.
+#  O sistema sobe 100% SIMULADO sem nenhuma credencial.
 # ============================================================================
 
 # ─── Modo dos provedores (HÍBRIDO E INDEPENDENTE) ─────────────────────────
@@ -65,3 +66,6 @@ ORDER_STATUS_BASE_URL=
 # ─── App ──────────────────────────────────────────────────
 PORT=8000
 LOG_LEVEL=info
+# Porta publicada no HOST pelo docker-compose (a interna é sempre 8000).
+# Mude se a 8000 estiver ocupada na sua máquina (ex.: API_HOST_PORT=8080).
+API_HOST_PORT=8000
