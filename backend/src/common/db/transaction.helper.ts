@@ -1,4 +1,4 @@
-import { Database, DbExecutor } from '../../db/drizzle.types';
+import { Database, DbExecutor } from '@/db/drizzle.types';
 
 /**
  * Executa `fn` dentro de uma transação Drizzle. Qualquer exceção lançada em `fn`
