@@ -194,5 +194,17 @@ simulada**.
 > Cobertura dos requisitos: webhook assinado (raw body), persistência com **rollback**,
 > **idempotência**, processamento assíncrono com **retry/DLQ**, RAG fiel à base (responde
 > "não sei" quando não há contexto), **function calling** (status de pedido `PED-XXXX`),
-> envio via Meta, REST multi-tenant, **interceptor de auditoria** (fila → fallback → log) e
-> tudo orquestrado por Docker.
+> envio via Meta, REST multi-tenant, **interceptor de auditoria** (fila → fallback → log),
+> **rate limit** (Throttler) + **headers de segurança** (Helmet) e tudo orquestrado por Docker.
+
+### 📲 Prova de funcionamento (WhatsApp real)
+
+Fluxo completo rodando com **OpenAI real + WhatsApp Cloud API real**: o cliente manda "Oi",
+e o backend (webhook assinado → fila SQS → worker → OpenAI com RAG/function calling → envio
+Meta) responde com os planos, formas de pagamento e o status do pedido `PED-1002` — entregue
+de verdade no WhatsApp:
+
+![Prova de entrega no WhatsApp — respostas geradas pela IA e enviadas pela Meta real](example/example.jpeg)
+
+> As respostas são fiéis à `knowledge-base/` (planos Fibra Start/Plus/Max, pagamento via
+> boleto/cartão/Pix) e a do pedido veio da **function calling** (`PED-1002` concluído).

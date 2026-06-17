@@ -70,6 +70,17 @@ A mesma imagem Docker roda os dois (comandos diferentes). Ambos inicializam as f
 ## Resiliência
 
 - **Retry/DLQ nativos do SQS**: em falha, a mensagem não é deletada → reentrega após o
-  visibility timeout → DLQ após `SQS_MAX_RECEIVE_COUNT`.
+  visibility timeout → DLQ após `SQS_MAX_RECEIVE_COUNT`. O `QueueBootstrap` (re)aplica a
+  redrive policy de forma idempotente em todo start (mesmo com fila pré-existente).
 - **Fallback de IA**: se a OpenAI falhar, o worker responde com mensagem de contingência.
 - **Fallback de auditoria**: fila → insert direto (tx) → log. Nunca quebra a request.
+
+## Segurança e limites (transversais)
+
+- **Headers de segurança**: `helmet()` no bootstrap da API (CSP, HSTS, X-Frame-Options, etc.).
+- **Rate limit**: `@nestjs/throttler` global (`THROTTLE_TTL`/`THROTTLE_LIMIT`), com
+  `@SkipThrottle()` no webhook (rajadas da Meta) e no health (healthcheck do Docker).
+- **Auditoria de TUDO, separada por status**: o `RequestTimingMiddleware` marca o início
+  antes dos guards; o `AuditInterceptor` audita os **sucessos** e o `AllExceptionsFilter`
+  audita os **erros** (inclusive rejeições de guard 401/403) com o status HTTP final correto.
+  Ambos usam o mesmo `buildAuditJob` (DRY) e o `AuditService` (fila → fallback → log).
