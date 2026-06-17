@@ -26,8 +26,9 @@ Cliente WhatsApp ─▶ Meta (real) / mock-meta ─(webhook assinado)─▶  API
 O `RequestTimingMiddleware` marca o início **antes dos guards**; o `AuditInterceptor` audita os
 **sucessos** e o `AllExceptionsFilter` audita os **erros** (inclusive rejeições de guard 401/403)
 com o status HTTP final correto. Ambos despacham um `AuditJob` para a fila `atendimento-audit`
-(com `audit-dlq`); o worker persiste de forma durável. Se a fila falhar → insert direto (tx);
-se o banco falhar → log. Nunca quebra a request.
+(com `audit-dlq`); o worker persiste de forma durável. Se o enqueue falhar → **log estruturado**
+(um coletor pode reprocessar) — de propósito NÃO inserimos direto no banco para não pressionar o
+Postgres justamente quando o SQS está fora (evita falha em cascata). Nunca quebra a request.
 
 ## Dois processos, um código
 
@@ -54,7 +55,7 @@ A mesma imagem Docker roda os dois (comandos diferentes). Ambos inicializam as f
 | `knowledge-base/` | Carga dos `*.md` + RAG (ranking por overlap de termos). |
 | `meta/` | Interface `MetaProvider`, impl HTTP (Graph API) + simulada, factory. |
 | `processing/` | `InboundProcessor` (núcleo do worker). |
-| `audit/` | `AuditService` (fila → fallback → log), `AuditProcessor` (durável), `buildAuditJob`, `auditJobToRow`, repositório. |
+| `audit/` | `AuditService` (fila → fallback de **log**, sem tocar o banco), `AuditProcessor` (persistência durável), `buildAuditJob`, `auditJobToRow`, repositório. |
 
 ## Reuso e DRY (destaques)
 
@@ -63,7 +64,7 @@ A mesma imagem Docker roda os dois (comandos diferentes). Ambos inicializam as f
 - Repositórios aceitam um `DbExecutor` (db **ou** tx), reusados dentro/fora de transação.
 - Factories de provider concentram a decisão real/simulado em **um único lugar** por integração.
 - `buildAuditJob` — fonte única do registro de auditoria (interceptor de sucesso **e** filtro de erro).
-- `auditJobToRow` — mapeamento único reaproveitado por fallback e processor.
+- `auditJobToRow` — mapeamento usado pelo `AuditProcessor` (persistência durável no worker).
 
 ## Multi-tenant
 
@@ -81,7 +82,8 @@ A mesma imagem Docker roda os dois (comandos diferentes). Ambos inicializam as f
   visibility timeout → DLQ após `SQS_MAX_RECEIVE_COUNT`. O `QueueBootstrap` (re)aplica a
   redrive policy de forma **idempotente** em todo start (mesmo com fila pré-existente).
 - **Fallback de IA**: se a OpenAI falhar, o worker responde com mensagem de contingência.
-- **Fallback de auditoria**: fila → insert direto (tx) → log. Nunca quebra a request.
+- **Fallback de auditoria**: fila → **log estruturado** (não toca o banco sob falha do SQS,
+  evitando carga síncrona no Postgres no pior momento). Nunca quebra a request.
 
 ## Segurança e limites (transversais)
 

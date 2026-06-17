@@ -12,7 +12,7 @@
 | **`.env` central na raiz** | Orquestra docker-compose + API + worker a partir de uma fonte única. | Hosts de rede sobrescritos no compose (localhost ↔ nomes de serviço). |
 | **Auto-criação de filas no bootstrap** | Idempotente (cria + `SetQueueAttributes` da redrive em todo start), funciona em LocalStack e AWS, sem container de init frágil. | Pequena corrida API/worker (tratada com create idempotente). |
 | **Auditoria: interceptor (sucesso) + filtro (erro)** | Cobre **toda** request separada por status — inclusive rejeições de guard (401/403), que rodam antes do interceptor — com o status HTTP final correto. | Timing precisa de um middleware (roda antes dos guards). |
-| **Auditoria via fila + fallback** | Não bloqueia a request; persistência durável com retry/DLQ. | Em colapso total (fila + banco) resta apenas o log. |
+| **Auditoria via fila + fallback de log** | Não bloqueia a request; persistência durável (worker) com retry/DLQ. Se o SQS falhar, cai para **log estruturado** (não toca o banco). | Auditoria é best-effort em colapso total do SQS (recuperável via coletor de logs). |
 | **helmet + @nestjs/throttler** | Headers de segurança e rate limit padrão, configuráveis por env, com baixo custo. | Throttler in-memory por instância (produção multi-nó usaria storage compartilhado, ex.: Redis). |
 
 ## Idempotência: commit-then-enqueue
@@ -27,6 +27,18 @@ exactly-once seria necessário um **outbox transacional**, deixado como evoluç�
 O worker **envia** a resposta e só então persiste a outbound como `sent`. Se o envio falhar,
 lança exceção → SQS reentrega (retry/DLQ). Em retry, a IA é chamada novamente (custo) — aceitável
 no escopo; um cache de resposta por mensagem resolveria.
+
+## Fallback de auditoria: log, não insert síncrono no banco
+
+O `AuditService` enfileira o registro (caminho durável: worker persiste com retry/DLQ). Se o
+**enqueue falhar**, em vez de inserir direto no Postgres, ele **registra em log estruturado**.
+
+Motivo: um insert síncrono no banco *exatamente quando o SQS está fora* adicionaria carga
+síncrona ao Postgres no pior momento (pressão no pool de conexões) — um fallback que pode
+**amplificar** o incidente (falha em cascata). O log não compete com a carga principal, nunca
+quebra a request e pode ser **reprocessado** por um coletor (Loki/ELK/CloudWatch). Para
+auditoria de compliance com garantia de não-perda, o próximo passo seria um sink append-only
+dedicado (ou outbox), não o banco transacional no caminho da request.
 
 ## Rate limit no webhook
 
