@@ -93,8 +93,8 @@ local via Docker.
 | Mock da Meta (dispara webhooks assinados + recebe envios) | [`mock-meta-server/`](mock-meta-server/) |
 | Base de conhecimento da empresa fictícia | [`knowledge-base/`](knowledge-base/) |
 | Infra local (Postgres, Redis, LocalStack, mock) | [`docker-compose.yml`](docker-compose.yml) |
-| Variáveis de ambiente de exemplo | [`.env.example`](.env.example) |
-| Esqueleto do projeto (package.json, tsconfig, drizzle) | raiz / [`src/`](src/) |
+| Variáveis de ambiente de exemplo | [`.env.example`](backend/.env.example) |
+| Esqueleto do projeto (package.json, tsconfig, drizzle) | raiz / [`src/`](backend/src/) |
 | Guia para obter credenciais reais da Meta e OpenAI | [`SETUP-CREDENCIAIS.md`](SETUP-CREDENCIAIS.md) |
 
 > Você pode fazer **todo o desafio sem credenciais reais da Meta**, usando o mock. A OpenAI
@@ -163,3 +163,36 @@ A porta esperada do **seu** backend é a **8000**.
   na entrevista vamos conversar sobre o seu código.
 
 Boa sorte! 🚀
+
+---
+
+## 🛠️ Solução implementada (candidato)
+
+Implementação completa em **NestJS + TypeScript + Drizzle (Postgres) + SQS (LocalStack)**,
+com **modo híbrido** (real **ou** simulado, independente por provedor) e auditoria de tudo.
+
+```bash
+# na RAIZ (onde está o .env central que orquestra tudo)
+docker compose up -d --build
+curl http://localhost:8000/health
+curl -X POST http://localhost:8001/simulate/inbound \
+  -H "Content-Type: application/json" \
+  -d '{ "from": "5511999990000", "text": "Quais são os planos de vocês?" }'
+curl http://localhost:8001/sent
+```
+
+Sobe **100% simulado sem credenciais**. Para usar OpenAI/Meta reais, ajuste `OPENAI_MODE`/
+`META_MODE` no `.env` (veja `envexample.txt`). Combinações livres — ex.: **OpenAI real + Meta
+simulada**.
+
+- Como rodar, endpoints e modo híbrido: [`backend/README.md`](backend/README.md)
+- Arquitetura: [`backend/docs/ARCHITECTURE.md`](backend/docs/ARCHITECTURE.md)
+- Decisões e trade-offs: [`backend/docs/DECISIONS.md`](backend/docs/DECISIONS.md)
+- Runbook (testar webhook, idempotência, DLQ, auditoria): [`backend/docs/RUNBOOK.md`](backend/docs/RUNBOOK.md)
+- Testes: `cd backend && npm test` (30 testes unitários em `backend/tests/unit`)
+
+> Cobertura dos requisitos: webhook assinado (raw body), persistência com **rollback**,
+> **idempotência**, processamento assíncrono com **retry/DLQ**, RAG fiel à base (responde
+> "não sei" quando não há contexto), **function calling** (status de pedido `PED-XXXX`),
+> envio via Meta, REST multi-tenant, **interceptor de auditoria** (fila → fallback → log) e
+> tudo orquestrado por Docker.
