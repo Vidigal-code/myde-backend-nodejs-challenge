@@ -69,3 +69,8 @@ LOG_LEVEL=info
 # Porta publicada no HOST pelo docker-compose (a interna é sempre 8000).
 # Mude se a 8000 estiver ocupada na sua máquina (ex.: API_HOST_PORT=8080).
 API_HOST_PORT=8000
+
+# ─── Rate limit (NestJS Throttler) ────────────────────────
+# Janela em milissegundos e máximo de requisições por janela/ IP.
+THROTTLE_TTL=60000
+THROTTLE_LIMIT=100

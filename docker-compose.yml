@@ -68,7 +68,7 @@ services:
       SQS_JOBS_DLQ_URL: http://localstack:4566/000000000000/atendimento-jobs-dlq
       SQS_AUDIT_QUEUE_URL: http://localstack:4566/000000000000/atendimento-audit
       SQS_AUDIT_DLQ_URL: http://localstack:4566/000000000000/atendimento-audit-dlq
-      META_API_BASE_URL: http://mock-meta:8001
+      META_API_BASE_URL: ${META_API_BASE_URL:-http://mock-meta:8001}
       KNOWLEDGE_BASE_DIR: /knowledge-base
       ORDER_STATUS_BASE_URL: http://api:8000
     command: sh -c "node dist/db/migrate.js && node dist/db/seed.js && node dist/main.js"
@@ -102,7 +102,7 @@ services:
       SQS_JOBS_DLQ_URL: http://localstack:4566/000000000000/atendimento-jobs-dlq
       SQS_AUDIT_QUEUE_URL: http://localstack:4566/000000000000/atendimento-audit
       SQS_AUDIT_DLQ_URL: http://localstack:4566/000000000000/atendimento-audit-dlq
-      META_API_BASE_URL: http://mock-meta:8001
+      META_API_BASE_URL: ${META_API_BASE_URL:-http://mock-meta:8001}
       KNOWLEDGE_BASE_DIR: /knowledge-base
       # Function calling: o worker consulta o endpoint de pedidos exposto pela API.
       ORDER_STATUS_BASE_URL: http://api:8000
